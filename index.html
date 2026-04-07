@@ -6,84 +6,47 @@
     <title>銀髮族認知訓練：色彩反應大師</title>
     <style>
         body {
-            margin: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background-color: #f0f4f8;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            overflow: hidden;
-            text-align: center;
+            margin: 0; display: flex; justify-content: center; align-items: center;
+            height: 100vh; background-color: #f0f4f8; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden; text-align: center;
         }
         #app-container {
-            position: relative;
-            width: 800px;
-            max-width: 100vw;
-            height: 500px;
-            max-height: 100vh;
-            background-color: white;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
-            border-radius: 15px;
-            overflow: hidden;
+            position: relative; width: 800px; max-width: 100vw; height: 500px; max-height: 100vh;
+            background-color: white; box-shadow: 0 8px 20px rgba(0,0,0,0.1); border-radius: 15px; overflow: hidden;
         }
-        /* 主選單 & 結算畫面 */
         .screen {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            background-color: white;
-            z-index: 10;
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            background-color: white; z-index: 10;
         }
         h1 { font-size: 42px; color: #2c3e50; margin-bottom: 20px; }
         p.subtitle { font-size: 20px; color: #7f8c8d; margin-bottom: 30px; }
-        
         .btn {
             padding: 15px 30px; margin: 10px; font-size: 22px; font-weight: bold;
-            cursor: pointer; border: none; border-radius: 10px;
-            color: white; transition: 0.2s; width: 300px; max-width: 90%;
+            cursor: pointer; border: none; border-radius: 10px; color: white; transition: 0.2s; width: 300px; max-width: 90%;
         }
-        .btn-start { background-color: #27ae60; }
-        .btn-start:hover { background-color: #2ecc71; }
-        .btn-esp { background-color: #2980b9; }
-        .btn-esp:hover { background-color: #3498db; }
+        .btn-start { background-color: #27ae60; } .btn-start:hover { background-color: #2ecc71; }
+        .btn-esp { background-color: #2980b9; } .btn-esp:hover { background-color: #3498db; }
         
-        /* 遊戲畫面區塊 */
         #game-screen { z-index: 5; display: none; background-color: #ecf0f1; }
         #status-bar {
             width: 100%; padding: 15px; font-size: 24px; font-weight: bold;
-            background-color: #34495e; color: white;
-            display: flex; justify-content: space-around;
-            box-sizing: border-box;
+            background-color: #34495e; color: white; display: flex; justify-content: space-around; box-sizing: border-box;
         }
-        #color-container {
-            display: flex; justify-content: center; align-items: center;
-            height: calc(100% - 60px); gap: 30px;
-        }
-        /* 三色大按鈕 (畫面上顯示用) */
+        #color-container { display: flex; justify-content: center; align-items: center; height: calc(100% - 60px); gap: 30px; }
         .color-block {
-            width: 150px; height: 150px; border-radius: 50%;
-            cursor: pointer; opacity: 0.2; /* 預設變暗 */
-            transition: opacity 0.1s, transform 0.1s;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+            width: 150px; height: 150px; border-radius: 50%; cursor: pointer; opacity: 0.2;
+            transition: opacity 0.1s, transform 0.1s; box-shadow: 0 10px 20px rgba(0,0,0,0.2);
         }
-        .color-block.active {
-            opacity: 1; transform: scale(1.1); /* 亮起並放大 */
-        }
+        .color-block.active { opacity: 1; transform: scale(1.1); }
         .color-block:active { transform: scale(0.95); }
         
         #btn-R { background-color: #e74c3c; border: 8px solid #c0392b; }
         #btn-Y { background-color: #f1c40f; border: 8px solid #f39c12; }
         #btn-B { background-color: #3498db; border: 8px solid #2980b9; }
 
-        /* 手機版適配 */
         @media (max-width: 600px) {
-            h1 { font-size: 32px; }
-            .color-block { width: 100px; height: 100px; }
-            #color-container { gap: 15px; }
+            h1 { font-size: 32px; } .color-block { width: 100px; height: 100px; } #color-container { gap: 15px; }
         }
     </style>
 </head>
@@ -121,207 +84,146 @@
 </div>
 
 <script>
-    // ==========================================
-    // --- 遊戲核心邏輯 ---
-    // ==========================================
-    const TOTAL_ROUNDS = 10; // 總共玩 10 個亮燈
-    let currentRound = 0;
-    let scoreCount = 0;
-    let reactionTimes = [];
-    let currentActiveColor = null; // 當前亮起的顏色: 'R', 'Y', 'B'
-    let lightUpTime = 0;           // 記錄亮燈的瞬間時間
-    let gameTimer = null;
-    let isWaitingForInput = false;
+    // --- 通訊全域變數 ---
+    let bleChar = null;       // 儲存藍牙傳輸通道
+    let serialWriter = null;  // 儲存序列埠傳輸通道
+
+    // 傳送指令給 ESP32 (雙模支援)
+    async function sendCommandToESP32(cmd) {
+        const encoder = new TextEncoder();
+        try {
+            if (bleChar) {
+                await bleChar.writeValue(encoder.encode(cmd));
+            }
+            if (serialWriter) {
+                await serialWriter.write(cmd + '\n');
+            }
+        } catch (err) {
+            console.error("發送指令失敗:", err);
+        }
+    }
+
+    const TOTAL_ROUNDS = 10;
+    let currentRound = 0, scoreCount = 0, reactionTimes = [], currentActiveColor = null;
+    let lightUpTime = 0, gameTimer = null, isWaitingForInput = false;
 
     function showScreen(screenId) {
-        document.getElementById('menu-screen').style.display = 'none';
-        document.getElementById('game-screen').style.display = 'none';
-        document.getElementById('result-screen').style.display = 'none';
+        document.querySelectorAll('.screen').forEach(el => el.style.display = 'none');
         document.getElementById(screenId).style.display = 'flex';
     }
 
     function startGame() {
-        currentRound = 0;
-        scoreCount = 0;
-        reactionTimes = [];
+        currentRound = 0; scoreCount = 0; reactionTimes = [];
         showScreen('game-screen');
+        sendCommandToESP32("OFF_ALL"); // 開局先全關
         nextRound();
     }
 
     function nextRound() {
-        if (currentRound >= TOTAL_ROUNDS) {
-            endGame();
-            return;
-        }
-        
+        if (currentRound >= TOTAL_ROUNDS) { endGame(); return; }
         currentRound++;
         document.getElementById('ui-round').innerText = `${currentRound}/${TOTAL_ROUNDS}`;
         isWaitingForInput = false;
 
-        // 關閉所有燈光
         document.querySelectorAll('.color-block').forEach(el => el.classList.remove('active'));
+        sendCommandToESP32("OFF_ALL"); // 等待期間燈關閉
 
-        // 隨機等待 1~2.5 秒後亮燈 (防止預判)
         const randomDelay = Math.floor(Math.random() * 1500) + 1000;
         gameTimer = setTimeout(() => {
-            // 隨機選一個顏色
             const colors = ['R', 'Y', 'B'];
             currentActiveColor = colors[Math.floor(Math.random() * colors.length)];
             
-            // 亮起該顏色
+            // 亮起螢幕顏色與實體 LED 燈
             document.getElementById(`btn-${currentActiveColor}`).classList.add('active');
+            sendCommandToESP32(`ON_${currentActiveColor}`);
             
-            lightUpTime = Date.now(); // 記錄亮燈時間
+            lightUpTime = Date.now();
             isWaitingForInput = true;
         }, randomDelay);
     }
 
-    // 處理玩家輸入 (滑鼠點擊或 ESP32 傳來的訊號)
-    // inputColor 必須是 'R', 'Y', 或 'B'
     function handleInput(inputColor) {
-        if (!isWaitingForInput) return; // 燈還沒亮不準按
-        
+        if (!isWaitingForInput) return;
         const reactionTime = Date.now() - lightUpTime;
         isWaitingForInput = false;
         
         if (inputColor === currentActiveColor) {
-            scoreCount++; // 按對了
-            reactionTimes.push(reactionTime); // 紀錄反應時間
-        } else {
-            // 按錯了給一個懲罰時間 2000ms
-            reactionTimes.push(2000); 
-        }
+            scoreCount++; reactionTimes.push(reactionTime);
+        } else { reactionTimes.push(2000); }
 
-        // 關閉燈光，進入下一回合
         document.querySelectorAll('.color-block').forEach(el => el.classList.remove('active'));
+        sendCommandToESP32("OFF_ALL"); // 玩家按了就關燈
+        
         clearTimeout(gameTimer);
-        setTimeout(nextRound, 500); // 休息 0.5 秒
+        setTimeout(nextRound, 500);
     }
 
     function endGame() {
-        // 計算成績
+        sendCommandToESP32("OFF_ALL");
         const accuracy = Math.round((scoreCount / TOTAL_ROUNDS) * 100);
-        let avgTime = 0;
-        if (reactionTimes.length > 0) {
-            const total = reactionTimes.reduce((a, b) => a + b, 0);
-            avgTime = Math.round(total / reactionTimes.length);
-        }
-
+        let avgTime = reactionTimes.length > 0 ? Math.round(reactionTimes.reduce((a, b) => a + b, 0) / reactionTimes.length) : 0;
         document.getElementById('result-acc').innerText = `正確率：${accuracy}%`;
         document.getElementById('result-time').innerText = `平均反應時間：${avgTime} 毫秒`;
 
-        // 準備發送給 Discord 與分析
-        const sessionData = {
-            date: new Date().toLocaleString(),
-            score: scoreCount,
-            accuracy: accuracy,
-            avgReactionTime: avgTime
-        };
-        sendToDiscordAndAnalyze(sessionData);
-
+        sendToDiscordAndAnalyze({ date: new Date().toLocaleString(), score: scoreCount, accuracy, avgReactionTime: avgTime });
         showScreen('result-screen');
     }
 
-    function returnToMenu() {
-        showScreen('menu-screen');
-    }
+    function returnToMenu() { showScreen('menu-screen'); }
 
-    // ==========================================
-    // --- Discord Webhook 與分析邏輯 ---
-    // ==========================================
     async function sendToDiscordAndAnalyze(sessionData) {
-        // ⚠️ 請在這裡貼上你申請的 Discord Webhook 網址
         const WEBHOOK_URL = "https://discord.com/api/webhooks/1490915002364985415/IIiu_o6Y5k7sfA5vs3FbsXxyTk1clSHrBpeNSVv2FcmhTXARqtsc3npq3PXpIRmVTz96"; 
-        
-        // 讀取歷史平均時間
         let historyAvgTime = localStorage.getItem('dementia_history_time') || 1500;
-        let progressMsg = "";
-        let timeDifference = historyAvgTime - sessionData.avgReactionTime;
+        let progressMsg = "", timeDifference = historyAvgTime - sessionData.avgReactionTime;
         
-        if (timeDifference > 50) {
-            progressMsg = `🟢 **大幅進步！** 反應時間比過去快了 ${Math.round(timeDifference)} ms！狀態極佳！`;
-            document.getElementById('result-analysis').style.color = '#27ae60';
-        } else if (timeDifference < -50) {
-            progressMsg = `🔴 **稍微退步** 反應時間慢了 ${Math.round(Math.abs(timeDifference))} ms。可能較疲勞。`;
-            document.getElementById('result-analysis').style.color = '#e74c3c';
-        } else {
-            progressMsg = `🟡 **維持水準** 表現十分穩定，繼續保持！`;
-            document.getElementById('result-analysis').style.color = '#f39c12';
-        }
+        if (timeDifference > 50) { progressMsg = `🟢 **大幅進步！** 反應時間快了 ${Math.round(timeDifference)} ms！`; document.getElementById('result-analysis').style.color = '#27ae60'; }
+        else if (timeDifference < -50) { progressMsg = `🔴 **稍微退步** 反應時間慢了 ${Math.round(Math.abs(timeDifference))} ms。`; document.getElementById('result-analysis').style.color = '#e74c3c'; }
+        else { progressMsg = `🟡 **維持水準** 表現穩定，繼續保持！`; document.getElementById('result-analysis').style.color = '#f39c12'; }
 
-        document.getElementById('result-analysis').innerText = progressMsg.replace(/[*_]/g, ''); // UI上移除Markdown符號
+        document.getElementById('result-analysis').innerText = progressMsg.replace(/[*_]/g, '');
+        localStorage.setItem('dementia_history_time', (parseInt(historyAvgTime) + sessionData.avgReactionTime) / 2);
 
-        // 更新歷史紀錄
-        let newAvgTime = (parseInt(historyAvgTime) + sessionData.avgReactionTime) / 2;
-        localStorage.setItem('dementia_history_time', newAvgTime);
-
-        if (WEBHOOK_URL === "請貼上你的_DISCORD_WEBHOOK_網址") {
-            console.log("未設定 Discord Webhook，略過發送。");
-            return;
-        }
-
-        const payload = {
-            username: "銀髮訓練機器人 🤖",
-            embeds: [{
-                title: "📋 每日認知與肢體訓練報告",
-                color: sessionData.accuracy >= 80 ? 3066993 : 15158332, // 高正確率綠色，低正確率紅色
-                fields: [
-                    { name: "🕒 測驗時間", value: sessionData.date, inline: false },
-                    { name: "🎯 命中率", value: `${sessionData.score}/${TOTAL_ROUNDS} (${sessionData.accuracy}%)`, inline: true },
-                    { name: "⚡ 平均反應時間", value: `${sessionData.avgReactionTime} ms`, inline: true },
-                    { name: "📈 系統分析", value: progressMsg, inline: false }
-                ]
-            }]
-        };
+        if (WEBHOOK_URL.includes("請貼上")) return;
 
         try {
             await fetch(WEBHOOK_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    username: "銀髮訓練機器人 🤖",
+                    embeds: [{
+                        title: "📋 每日認知與肢體訓練報告", color: sessionData.accuracy >= 80 ? 3066993 : 15158332,
+                        fields: [ { name: "🕒 時間", value: sessionData.date, inline: false }, { name: "🎯 命中率", value: `${sessionData.score}/${TOTAL_ROUNDS} (${sessionData.accuracy}%)`, inline: true }, { name: "⚡ 平均反應時間", value: `${sessionData.avgReactionTime} ms`, inline: true }, { name: "📈 分析", value: progressMsg, inline: false } ]
+                    }]
+                })
             });
-            console.log("✅ 戰報已發送至 Discord！");
-        } catch (error) {
-            console.error("❌ Discord 發送失敗:", error);
-        }
+        } catch (error) { console.error("❌ Discord 發送失敗:", error); }
     }
 
-    // ==========================================
-    // --- ESP32 硬體連線 (藍牙/有線) 預留通道 ---
-    // ==========================================
-    
-    // 收到 ESP32 訊號時的處理函式，預計收到 'R', 'Y', 或 'B'
     function processESP32Signal(message) {
         if (message.includes('R')) handleInput('R');
         else if (message.includes('Y')) handleInput('Y');
         else if (message.includes('B')) handleInput('B');
     }
 
-    // --- Web Bluetooth ---
+    // --- 連線功能 ---
     const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
     const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
     async function connectBLE() {
         try {
-            const bleDevice = await navigator.bluetooth.requestDevice({
-                filters: [{ name: 'ESP32_Trainer' }], // 之後把 ESP32 名字改成這個
-                optionalServices: [SERVICE_UUID]
-            });
+            const bleDevice = await navigator.bluetooth.requestDevice({ filters: [{ name: 'ESP32_Trainer' }], optionalServices: [SERVICE_UUID] });
             const server = await bleDevice.gatt.connect();
             const service = await server.getPrimaryService(SERVICE_UUID);
-            const characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
-            await characteristic.startNotifications();
+            bleChar = await service.getCharacteristic(CHARACTERISTIC_UUID); // 儲存通道以供寫入
+            await bleChar.startNotifications();
             
-            characteristic.addEventListener('characteristicvaluechanged', (e) => {
-                const msg = new TextDecoder('utf-8').decode(e.target.value).trim();
-                processESP32Signal(msg);
+            bleChar.addEventListener('characteristicvaluechanged', (e) => {
+                processESP32Signal(new TextDecoder('utf-8').decode(e.target.value).trim());
             });
-            
             document.getElementById('connection-status').innerText = "✅ 藍牙搖桿已連接";
             document.getElementById('connection-status').style.color = "#2980b9";
         } catch (error) { console.error('藍牙連線失敗:', error); }
     }
 
-    // --- Web Serial ---
     async function connectSerial() {
         try {
             const port = await navigator.serial.requestPort();
@@ -329,6 +231,12 @@
             document.getElementById('connection-status').innerText = "✅ 有線搖桿已連接";
             document.getElementById('connection-status').style.color = "#8e44ad";
             
+            // 建立寫入通道
+            const textEncoder = new TextEncoderStream();
+            textEncoder.readable.pipeTo(port.writable);
+            serialWriter = textEncoder.writable.getWriter();
+
+            // 建立讀取通道
             const textDecoder = new TextDecoderStream();
             port.readable.pipeTo(textDecoder.writable);
             const reader = textDecoder.readable.getReader();
@@ -340,10 +248,9 @@
                 if (value) {
                     buffer += value;
                     if (buffer.includes('R') || buffer.includes('Y') || buffer.includes('B')) {
-                        processESP32Signal(buffer);
-                        buffer = ""; 
+                        processESP32Signal(buffer); buffer = ""; 
                     }
-                    if (buffer.length > 10) buffer = ""; // 防溢位
+                    if (buffer.length > 10) buffer = ""; 
                 }
             }
         } catch (error) { console.error('序列埠連線失敗:', error); }
