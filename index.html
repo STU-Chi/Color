@@ -64,7 +64,8 @@
         <div id="result-time-compare" class="time-box"></div>
         <h2 id="result-score" style="margin:10px 0;">分數：--</h2>
         <div id="result-analysis" class="analysis-card"></div>
-        <button class="btn btn-start" onclick="location.reload()">重新挑戰</button>
+        <button class="btn btn-start" onclick="returnToMenu()">返回主選單</button>
+        <button class="btn btn-start" style="background-color: #f39c12;" onclick="startGame()">直接再玩一次</button>
     </div>
 </div>
 
@@ -117,6 +118,12 @@
             sendCmd(`ON_${currentActiveColor}`);
             isWaiting = true;
         }, Math.random() * 1500 + 1000);
+    }
+
+    function returnToMenu() {
+        // 隱藏結算畫面，顯示主選單 (不會斷開連線！)
+        document.getElementById('result-screen').style.display = 'none';
+        document.getElementById('menu-screen').style.display = 'flex';
     }
 
     function handleInput(c) {
