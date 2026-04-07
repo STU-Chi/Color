@@ -3,51 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>銀髮族認知訓練：色彩反應大師 V2</title>
+    <title>銀髮認知訓練 V3</title>
     <style>
-        body {
-            margin: 0; display: flex; justify-content: center; align-items: center;
-            height: 100vh; background-color: #f0f4f8; font-family: 'Segoe UI', sans-serif;
-            overflow: hidden; text-align: center;
-        }
-        #app-container {
-            position: relative; width: 800px; max-width: 100vw; height: 500px; max-height: 100vh;
-            background-color: white; box-shadow: 0 8px 20px rgba(0,0,0,0.1); border-radius: 15px; overflow: hidden;
-        }
-        .screen {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            background-color: white; z-index: 10;
-        }
-        h1 { font-size: 38px; color: #2c3e50; margin-bottom: 10px; }
-        .btn {
-            padding: 15px 30px; margin: 8px; font-size: 20px; font-weight: bold;
-            cursor: pointer; border: none; border-radius: 10px; color: white; transition: 0.2s; width: 320px;
-        }
-        .btn-start { background-color: #27ae60; }
-        .btn-esp { background-color: #2980b9; }
+        body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f0f4f8; font-family: sans-serif; overflow: hidden; }
+        #app-container { position: relative; width: 100%; max-width: 500px; height: 100%; background: white; overflow: hidden; display: flex; flex-direction: column; }
+        .screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: white; z-index: 10; padding: 20px; box-sizing: border-box; }
+        h1 { font-size: 28px; margin-bottom: 10px; }
+        .btn { padding: 15px; margin: 10px; font-size: 18px; font-weight: bold; cursor: pointer; border: none; border-radius: 12px; color: white; width: 80%; }
+        .btn-start { background: #27ae60; } .btn-esp { background: #2980b9; }
         
-        #game-screen { display: none; background-color: #ecf0f1; }
-        #status-bar {
-            width: 100%; padding: 15px; font-size: 24px; font-weight: bold;
-            background-color: #34495e; color: white; display: flex; justify-content: space-around;
-        }
-        #color-container { display: flex; justify-content: center; align-items: center; height: calc(100% - 60px); gap: 30px; }
-        .color-block {
-            width: 150px; height: 150px; border-radius: 50%; cursor: pointer; opacity: 0.1;
-            transition: 0.1s; box-shadow: 0 10px 20px rgba(0,0,0,0.2);
-        }
+        /* 遊戲畫面 */
+        #game-screen { display: none; background: #ecf0f1; }
+        #status-bar { width: 100%; padding: 15px; background: #34495e; color: white; display: flex; justify-content: space-between; font-weight: bold; }
+        
+        /* 核心修改：響應式圓形容器 */
+        #color-container { display: flex; flex-direction: column; justify-content: space-around; align-items: center; flex-grow: 1; width: 100%; padding: 20px 0; }
+        .color-block { width: 120px; height: 120px; border-radius: 50%; opacity: 0.1; transition: 0.1s; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
         .color-block.active { opacity: 1; transform: scale(1.1); }
         
-        #btn-R { background-color: #e74c3c; border: 8px solid #c0392b; }
-        #btn-Y { background-color: #f1c40f; border: 8px solid #f39c12; }
-        #btn-B { background-color: #3498db; border: 8px solid #2980b9; }
-
-        /* 連線狀態提示條 */
-        #conn-msg {
-            position: absolute; bottom: 20px; width: 100%; text-align: center;
-            font-weight: bold; font-size: 18px; color: #7f8c8d; transition: 0.3s;
+        /* 電腦橫向時改回橫排 */
+        @media (min-width: 600px) {
+            #app-container { max-width: 800px; height: 500px; border-radius: 15px; }
+            #color-container { flex-direction: row; }
+            .color-block { width: 150px; height: 150px; }
         }
+
+        #btn-R { background: #e74c3c; border: 6px solid #c0392b; }
+        #btn-Y { background: #f1c40f; border: 6px solid #f39c12; }
+        #btn-B { background: #3498db; border: 6px solid #2980b9; }
+
+        .time-box { font-size: 16px; color: #7f8c8d; margin-top: 5px; }
+        .analysis-card { width: 90%; padding: 15px; border-radius: 10px; margin-top: 15px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -55,17 +41,16 @@
 <div id="app-container">
     <div id="menu-screen" class="screen">
         <h1>🧠 色彩反應大師</h1>
-        <p>請連接裝置後開始訓練</p>
-        <button class="btn btn-start" onclick="startGame()">▶️ 直接開始 (螢幕點擊)</button>
-        <button class="btn btn-esp" onclick="connectBLE()">🔗 連接藍牙 ESP32</button>
-        <button class="btn btn-esp" style="background-color: #8e44ad;" onclick="connectSerial()">🔌 連接有線 ESP32</button>
-        <div id="conn-msg">尚未連接裝置</div>
+        <button class="btn btn-start" onclick="startGame()">▶️ 開始訓練</button>
+        <button class="btn btn-esp" onclick="connectBLE()">🔗 藍牙連線 (手機推薦)</button>
+        <button class="btn btn-esp" style="background:#8e44ad" onclick="connectSerial()">🔌 有線連線 (電腦推薦)</button>
+        <div id="conn-msg" style="margin-top:10px; font-weight:bold;">等待連線...</div>
     </div>
 
     <div id="game-screen" class="screen">
         <div id="status-bar">
             <span>回合: <span id="ui-round">1/10</span></span>
-            <span>看燈光拍按鈕！</span>
+            <span id="ui-timer">0.0s</span>
         </div>
         <div id="color-container">
             <div id="btn-R" class="color-block" onclick="handleInput('R')"></div>
@@ -75,43 +60,46 @@
     </div>
 
     <div id="result-screen" class="screen" style="display:none;">
-        <h1>📊 訓練結算</h1>
-        <h2 id="result-score">分數：-- / 10</h2>
-        <h2 id="result-acc">正確率：--%</h2>
-        <p id="result-analysis" style="font-size: 22px; font-weight: bold; padding: 20px; border-radius: 10px;"></p>
-        <button class="btn btn-start" onclick="location.reload()">返回主選單</button>
+        <h1>📊 結算報告</h1>
+        <div id="result-time-compare" class="time-box"></div>
+        <h2 id="result-score" style="margin:10px 0;">分數：--</h2>
+        <div id="result-analysis" class="analysis-card"></div>
+        <button class="btn btn-start" onclick="location.reload()">重新挑戰</button>
     </div>
 </div>
 
 <script>
     let bleChar = null, serialWriter = null;
-
-    // 更新連線訊息 (增加 alert 確保電腦版一定會看到)
-    function updateStatus(msg, isSuccess) {
-        const el = document.getElementById('conn-msg');
-        el.innerText = msg;
-        el.style.color = isSuccess ? "#27ae60" : "#e74c3c";
-        if (isSuccess) alert(msg); // 電腦版增加強制提醒
-    }
-
-    async function sendCommand(cmd) {
-        const encoder = new TextEncoder();
-        try {
-            if (bleChar) await bleChar.writeValue(encoder.encode(cmd));
-            if (serialWriter) await serialWriter.write(cmd + '\n');
-        } catch (e) { console.log("指令發送失敗"); }
-    }
-
-    // --- 遊戲邏輯 ---
+    let gameStartTime, totalGameTime, roundTimer;
     const TOTAL_ROUNDS = 10;
-    let currentRound = 0, scoreCount = 0, reactionTimes = [];
-    let currentActiveColor = null, lightUpTime = 0, isWaiting = false;
+    let currentRound = 0, scoreCount = 0, currentActiveColor = null, isWaiting = false;
+
+    function updateStatus(msg, ok) {
+        document.getElementById('conn-msg').innerText = msg;
+        document.getElementById('conn-msg').style.color = ok ? "#27ae60" : "#e74c3c";
+        if (ok) alert(msg);
+    }
+
+    async function sendCmd(c) {
+        try {
+            if (bleChar) await bleChar.writeValue(new TextEncoder().encode(c));
+            if (serialWriter) await serialWriter.write(c + '\n');
+        } catch (e) {}
+    }
 
     function startGame() {
-        currentRound = 0; scoreCount = 0; reactionTimes = [];
+        currentRound = 0; scoreCount = 0;
+        gameStartTime = Date.now(); // 記錄總開始時間
         document.getElementById('menu-screen').style.display = 'none';
         document.getElementById('game-screen').style.display = 'flex';
-        sendCommand("OFF_ALL");
+        
+        // 即時跳秒顯示
+        roundTimer = setInterval(() => {
+            const sec = ((Date.now() - gameStartTime) / 1000).toFixed(1);
+            document.getElementById('ui-timer').innerText = sec + "s";
+        }, 100);
+
+        sendCmd("OFF_ALL");
         nextRound();
     }
 
@@ -120,131 +108,111 @@
         currentRound++;
         document.getElementById('ui-round').innerText = `${currentRound}/${TOTAL_ROUNDS}`;
         isWaiting = false;
-        document.querySelectorAll('.color-block').forEach(el => el.classList.remove('active'));
-        sendCommand("OFF_ALL");
+        document.querySelectorAll('.color-block').forEach(e => e.classList.remove('active'));
+        sendCmd("OFF_ALL");
 
         setTimeout(() => {
-            const colors = ['R', 'Y', 'B'];
-            currentActiveColor = colors[Math.floor(Math.random() * 3)];
+            currentActiveColor = ['R','Y','B'][Math.floor(Math.random()*3)];
             document.getElementById(`btn-${currentActiveColor}`).classList.add('active');
-            sendCommand(`ON_${currentActiveColor}`);
-            lightUpTime = Date.now();
+            sendCmd(`ON_${currentActiveColor}`);
             isWaiting = true;
         }, Math.random() * 1500 + 1000);
     }
 
-    function handleInput(inputColor) {
+    function handleInput(c) {
         if (!isWaiting) return;
         isWaiting = false;
-        const time = Date.now() - lightUpTime;
-        if (inputColor === currentActiveColor) { scoreCount++; reactionTimes.push(time); }
-        sendCommand("OFF_ALL");
+        if (c === currentActiveColor) scoreCount++;
+        sendCmd("OFF_ALL");
         setTimeout(nextRound, 500);
     }
 
     function endGame() {
-        sendCommand("OFF_ALL");
-        const acc = Math.round((scoreCount / TOTAL_ROUNDS) * 100);
-        const avg = reactionTimes.length > 0 ? Math.round(reactionTimes.reduce((a,b)=>a+b)/reactionTimes.length) : 0;
-        
-        document.getElementById('result-score').innerText = `分數：${scoreCount} / ${TOTAL_ROUNDS}`;
-        document.getElementById('result-acc').innerText = `正確率：${acc}%`;
-        
-        analyzeProgress(scoreCount, acc, avg);
-        document.getElementById('game-screen').style.display = 'none';
-        document.getElementById('result-screen').style.display = 'flex';
-    }
+        clearInterval(roundTimer);
+        totalGameTime = ((Date.now() - gameStartTime) / 1000).toFixed(1); // 本次總秒數
+        sendCmd("OFF_ALL");
 
-    // --- 進步分析邏輯 (新標準) ---
-    async function analyzeProgress(score, acc, avg) {
-        // 從記憶中抓出上一次的紀錄
+        let lastTime = localStorage.getItem('last_total_time') || "--";
         let lastScore = parseInt(localStorage.getItem('last_score')) || 0;
         let lastAcc = parseInt(localStorage.getItem('last_acc')) || 0;
+        const acc = (scoreCount / TOTAL_ROUNDS) * 100;
 
-        let diffScore = score - lastScore;
-        let diffAcc = acc - lastAcc;
-        let progressMsg = "";
-        let isImproved = false;
+        // 顯示時間比較
+        document.getElementById('result-time-compare').innerHTML = `本次耗時：${totalGameTime}s | 上次耗時：${lastTime}s`;
+        document.getElementById('result-score').innerText = `分數：${scoreCount} / 10 (${acc}%)`;
 
-        if (score > lastScore || acc > lastAcc) {
-            isImproved = true;
-            progressMsg = `🎉 **進步了！** 比上次多得 ${diffScore} 分，正確率提升 ${diffAcc}%！`;
-            document.getElementById('result-analysis').style.backgroundColor = "#d4edda";
-            document.getElementById('result-analysis').style.color = "#155724";
-        } else if (score === lastScore && acc === lastAcc) {
-            progressMsg = `⚖️ **維持水準！** 表現非常穩定，繼續挑戰吧！`;
-            document.getElementById('result-analysis').style.backgroundColor = "#fff3cd";
-            document.getElementById('result-analysis').style.color = "#856404";
+        // 進步判斷邏輯
+        let analysis = document.getElementById('result-analysis');
+        if (scoreCount > lastScore || acc > lastAcc) {
+            analysis.innerText = `📈 進步了！分數比上次高 ${scoreCount - lastScore} 分！`;
+            analysis.style.background = "#d4edda"; analysis.style.color = "#155724";
         } else {
-            progressMsg = `💪 **再接再厲！** 離上次紀錄還差一點點，多運動一下大腦！`;
-            document.getElementById('result-analysis').style.backgroundColor = "#f8d7da";
-            document.getElementById('result-analysis').style.color = "#721c24";
+            analysis.innerText = `💪 持之以恆！再試一次，挑戰上次的紀錄吧！`;
+            analysis.style.background = "#fff3cd"; analysis.style.color = "#856404";
         }
 
-        document.getElementById('result-analysis').innerText = progressMsg.replace(/[*]/g, '');
-
-        // 存入本次紀錄作為下次比對
-        localStorage.setItem('last_score', score);
+        // 存入紀錄
+        localStorage.setItem('last_total_time', totalGameTime);
+        localStorage.setItem('last_score', scoreCount);
         localStorage.setItem('last_acc', acc);
 
-        // 發送 Discord
-        const WEBHOOK_URL = "https://discord.com/api/webhooks/1490915002364985415/IIiu_o6Y5k7sfA5vs3FbsXxyTk1clSHrBpeNSVv2FcmhTXARqtsc3npq3PXpIRmVTz96"; 
-        if (WEBHOOK_URL.includes("http")) {
-            fetch(WEBHOOK_URL, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    username: "長輩訓練小幫手",
-                    embeds: [{
-                        title: "📈 訓練成果分析報告",
-                        color: isImproved ? 3066993 : 15158332,
-                        fields: [
-                            { name: "🎯 本次得分", value: `${score} 分`, inline: true },
-                            { name: "✅ 正確率", value: `${acc}%`, inline: true },
-                            { name: "⚡ 平均反應", value: `${avg} ms`, inline: true },
-                            { name: "📝 歷史比對分析", value: progressMsg, inline: false }
-                        ]
-                    }]
-                })
-            });
-        }
+        document.getElementById('game-screen').style.display = 'none';
+        document.getElementById('result-screen').style.display = 'flex';
+        
+        sendToDiscord(scoreCount, acc, totalGameTime, lastTime, analysis.innerText);
     }
 
-    // --- 連線功能 ---
+    async function sendToDiscord(s, a, t, lt, msg) {
+        const WEBHOOK = "https://discord.com/api/webhooks/1490915002364985415/IIiu_o6Y5k7sfA5vs3FbsXxyTk1clSHrBpeNSVv2FcmhTXARqtsc3npq3PXpIRmVTz96";
+        if (!WEBHOOK.includes("http")) return;
+        fetch(WEBHOOK, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                embeds: [{
+                    title: "老年認知訓練戰報",
+                    color: 3447003,
+                    fields: [
+                        { name: "🎯 本次得分", value: `${s} 分 (${a}%)`, inline: true },
+                        { name: "⏱️ 本次耗時", value: `${t} 秒`, inline: true },
+                        { name: "⌛ 上次耗時", value: `${lt} 秒`, inline: true },
+                        { name: "📊 系統評價", value: msg, inline: false }
+                    ]
+                }]
+            })
+        });
+    }
+
+    // --- 連線代碼 (保持不變) ---
     async function connectBLE() {
         try {
-            const device = await navigator.bluetooth.requestDevice({
-                filters: [{ name: 'ESP32_Trainer' }],
-                optionalServices: ["4fafc201-1fb5-459e-8fcc-c5c9c331914b"]
-            });
-            const server = await device.gatt.connect();
-            const service = await server.getPrimaryService("4fafc201-1fb5-459e-8fcc-c5c9c331914b");
-            bleChar = await service.getCharacteristic("beb5483e-36e1-4688-b7f5-ea07361b26a8");
+            const dev = await navigator.bluetooth.requestDevice({ filters: [{ name: 'ESP32_Trainer' }], optionalServices: ["4fafc201-1fb5-459e-8fcc-c5c9c331914b"] });
+            const srv = await dev.gatt.connect();
+            const svc = await srv.getPrimaryService("4fafc201-1fb5-459e-8fcc-c5c9c331914b");
+            bleChar = await svc.getCharacteristic("beb5483e-36e1-4688-b7f5-ea07361b26a8");
             await bleChar.startNotifications();
             bleChar.addEventListener('characteristicvaluechanged', e => {
-                const msg = new TextDecoder().decode(e.target.value).trim();
-                if (['R','Y','B'].includes(msg)) handleInput(msg);
+                const m = new TextDecoder().decode(e.target.value).trim();
+                if (['R','Y','B'].includes(m)) handleInput(m);
             });
-            updateStatus("✅ 藍牙連線成功！", true);
-        } catch (e) { updateStatus("❌ 藍牙連線失敗", false); }
+            updateStatus("✅ 藍牙已連接", true);
+        } catch (e) { updateStatus("❌ 連接失敗", false); }
     }
 
     async function connectSerial() {
         try {
-            const port = await navigator.serial.requestPort();
-            await port.open({ baudRate: 115200 });
-            const encoder = new TextEncoderStream();
-            encoder.readable.pipeTo(port.writable);
-            serialWriter = encoder.writable.getWriter();
-            const decoder = new TextDecoderStream();
-            port.readable.pipeTo(decoder.writable);
-            const reader = decoder.readable.getReader();
-            updateStatus("✅ 有線連線成功！", true);
+            const p = await navigator.serial.requestPort();
+            await p.open({ baudRate: 115200 });
+            const out = new TextEncoderStream(); out.readable.pipeTo(p.writable);
+            serialWriter = out.writable.getWriter();
+            const ins = new TextDecoderStream(); p.readable.pipeTo(ins.writable);
+            const rdr = ins.readable.getReader();
+            updateStatus("✅ 有線已連接", true);
             while(true) {
-                const {value, done} = await reader.read();
-                if(done) break;
-                if(value && ['R','Y','B'].includes(value.trim())) handleInput(value.trim());
+                const {value, done} = await rdr.read();
+                if (done) break;
+                if (value && ['R','Y','B'].includes(value.trim())) handleInput(value.trim());
             }
-        } catch (e) { updateStatus("❌ 有線連線失敗", false); }
+        } catch (e) { updateStatus("❌ 連接失敗", false); }
     }
 </script>
 </body>
