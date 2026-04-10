@@ -43,6 +43,7 @@
     <div id="menu-screen" class="screen">
         <h1>🧠 色彩反應大師</h1>
         <button class="btn btn-start" onclick="startGame()">▶️ 開始訓練</button>
+        <button class="btn btn-esp" style="background:#e67e22" onclick="connectWiFi()">🌐 Wi-Fi 連線 (區域網路)</button>
         <button class="btn btn-esp" onclick="connectBLE()">🔗 藍牙連線 (手機推薦)</button>
         <button class="btn btn-esp" style="background:#8e44ad" onclick="connectSerial()">🔌 有線連線 (電腦推薦)</button>
         <div id="conn-msg" style="margin-top:10px; font-weight:bold;">等待連線...</div>
@@ -70,7 +71,7 @@
 </div>
 
 <script>
-    let bleChar = null, serialWriter = null;
+    let bleChar = null, serialWriter = null, socket = null; // 新增 socket 變數
     let gameStartTime, totalGameTime, roundTimer;
     const TOTAL_ROUNDS = 10;
     let currentRound = 0, scoreCount = 0, currentActiveColor = null, isWaiting = false;
@@ -85,9 +86,38 @@
         try {
             if (bleChar) await bleChar.writeValue(new TextEncoder().encode(c));
             if (serialWriter) await serialWriter.write(c + '\n');
-        } catch (e) {}
+            if (socket && socket.readyState === WebSocket.OPEN) socket.send(c); // Wi-Fi 發送
+        } catch (e) { console.error("發送失敗", e); }
     }
 
+    // 新增 Wi-Fi 連線邏輯
+    function connectWiFi() {
+        const ip = prompt("請輸入 ESP32 的 IP 位址 (例如 192.168.1.100):", "192.168.4.1");
+        if (!ip) return;
+
+        updateStatus("嘗試連線至 Wi-Fi...", false);
+        
+        // 建立 WebSocket 連線 (假設 ESP32 監聽 81 埠)
+        socket = new WebSocket(`ws://${ip}:81`);
+
+        socket.onopen = () => {
+            updateStatus("✅ Wi-Fi 已連接", true);
+        };
+
+        socket.onmessage = (event) => {
+            const m = event.data.trim();
+            if (['R','Y','B'].includes(m)) handleInput(m);
+        };
+
+        socket.onclose = () => {
+            updateStatus("❌ Wi-Fi 已斷開", false);
+        };
+
+        socket.onerror = () => {
+            updateStatus("❌ Wi-Fi 連線出錯", false);
+        };
+    }
+    
     function startGame() {
         currentRound = 0; scoreCount = 0;
         gameStartTime = Date.now(); // 記錄總開始時間
