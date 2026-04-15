@@ -92,12 +92,21 @@
 
     // 新增 Wi-Fi 連線邏輯 (修改版：一鍵直接連線)
     function connectWiFi() {
-        // ★ 這裡的 IP 必須跟你在 ESP32 (color.ino) 裡設定的 local_IP 完全一模一樣！
-        const esp32_ip = "192.168.1.100"; 
+        // 讀取瀏覽器上次記住的 IP，如果沒有紀錄，預設先給 "10.83.106.200"
+        let lastIp = localStorage.getItem('last_esp_ip') || "10.83.106.200";
+        
+        // 彈出視窗讓使用者輸入 IP
+        const esp32_ip = prompt("請輸入 ESP32 目前的 IP 位址：", lastIp);
+        
+        // 如果使用者按了「取消」或沒輸入，就中斷程式
+        if (!esp32_ip) return; 
+
+        // 把這次輸入的 IP 記在瀏覽器裡，下次就不用重打
+        localStorage.setItem('last_esp_ip', esp32_ip);
 
         updateStatus(`正在連線至 ESP32 (${esp32_ip})...`, false);
         
-        // 建立 WebSocket 連線 (ESP32 監聽 81 埠)
+        // 建立 WebSocket 連線
         socket = new WebSocket(`ws://${esp32_ip}:81`);
 
         socket.onopen = () => {
@@ -114,7 +123,7 @@
         };
 
         socket.onerror = () => {
-            updateStatus("❌ 找不到 ESP32，請確認 IP 正確且兩者連上同一個 Wi-Fi", false);
+            updateStatus("❌ 連線失敗！請確認 IP 正確，且瀏覽器已允許不安全內容", false);
         };
     }
     
