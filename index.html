@@ -214,6 +214,11 @@
         }
         analysis.innerText = evalMsg;
 
+        const GAS_URL = "你的網頁應用程式URL"; // 貼上剛才部署的連結
+        fetch(GAS_URL)
+            .then(() => console.log("Google 紀錄成功"))
+            .catch(err => console.error("Google 紀錄失敗", err));
+            
         // 觸發 Discord Webhook 發送
         sendDiscordWebhook(scoreCount, acc, totalGameTime, lastTime, evalMsg);
 
