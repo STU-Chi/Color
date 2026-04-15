@@ -105,15 +105,31 @@
         };
 
         mqttClient.onMessageArrived = (message) => {
+            const topic = message.destinationName;
             const m = message.payloadString.trim();
+
+            // 判斷是否為狀態訊息
+            if (topic === "my_color_trainer/status") {
+                if (m === "Online") {
+                    updateStatus("✅ 雲端已連線，設備在線中！", true);
+                } else {
+                    updateStatus("⚠️ 雲端已連線，但【設備已離線】", false);
+                }
+                return; // 狀態訊息處理完就結束，不進入下方的遊戲邏輯
+            }
+
+            // 原本的遊戲按鈕邏輯
             if (['R','Y','B'].includes(m)) handleInput(m);
         };
 
         mqttClient.connect({
             useSSL: true,
             onSuccess: () => {
-                updateStatus("✅ 雲端已連線，可以開始遊玩！", true);
+                // 修改提示文字，表示正在等設備反應
+                updateStatus("✅ 雲端已連線，正在偵測設備...", true); 
                 mqttClient.subscribe(topic_evt);
+                // 新增：訂閱設備狀態頻道
+                mqttClient.subscribe("my_color_trainer/status");
             },
             onFailure: (err) => {
                 updateStatus("❌ 雲端連線失敗", false);
