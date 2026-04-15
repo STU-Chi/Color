@@ -1,13 +1,10 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-<meta charset="UTF-8">
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>顏色訓練反應</title>
-    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
-    
-    <link rel="manifest" href="manifest.json">
     <style>
         body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f0f4f8; font-family: sans-serif; overflow: hidden; }
         #app-container { position: relative; width: 100%; max-width: 500px; height: 100%; background: white; overflow: hidden; display: flex; flex-direction: column; }
@@ -67,9 +64,8 @@
 
 <script>
     let bleChar = null, serialWriter = null;
-    let mqttClient = null; // MQTT 客戶端
+    let mqttClient = null; 
     
-    // MQTT 設定頻道
     const topic_cmd = "my_color_trainer/cmd";
     const topic_evt = "my_color_trainer/evt";
 
@@ -86,7 +82,6 @@
         try {
             if (bleChar) await bleChar.writeValue(new TextEncoder().encode(c));
             if (serialWriter) await serialWriter.write(c + '\n');
-            // 透過 MQTT 發送指令給 ESP32
             if (mqttClient && mqttClient.isConnected()) {
                 const message = new Paho.MQTT.Message(c);
                 message.destinationName = topic_cmd;
@@ -95,21 +90,18 @@
         } catch (e) { console.error("發送失敗", e); }
     }
 
-    // --- 新增：MQTT 雲端連線邏輯 ---
+    // --- MQTT 雲端連線 ---
     function connectMQTT() {
+        if (typeof Paho === 'undefined') {
+            updateStatus("❌ MQTT 尚未載入，請重新整理網頁", false);
+            return;
+        }
         updateStatus("正在連線至雲端伺服器...", false);
-        
-        // 隨機產生網頁端的 Client ID
         const clientId = "WebClient-" + Math.random().toString(16).substr(2, 8);
-        
-        // 連接至 EMQX 公開伺服器的加密 WebSocket 埠 (8084)
         mqttClient = new Paho.MQTT.Client("broker.emqx.io", 8084, "/mqtt", clientId);
 
-        // 設定回呼函數
         mqttClient.onConnectionLost = (responseObject) => {
-            if (responseObject.errorCode !== 0) {
-                updateStatus("❌ 雲端連線已斷開", false);
-            }
+            if (responseObject.errorCode !== 0) updateStatus("❌ 雲端連線已斷開", false);
         };
 
         mqttClient.onMessageArrived = (message) => {
@@ -117,12 +109,10 @@
             if (['R','Y','B'].includes(m)) handleInput(m);
         };
 
-        // 開始連線 (使用 SSL 加密，解決 GitHub Pages 阻擋問題)
         mqttClient.connect({
             useSSL: true,
             onSuccess: () => {
                 updateStatus("✅ 雲端已連線，可以開始遊玩！", true);
-                // 訂閱 ESP32 發出按鈕訊號的頻道
                 mqttClient.subscribe(topic_evt);
             },
             onFailure: (err) => {
@@ -176,6 +166,29 @@
         setTimeout(nextRound, 500);
     }
 
+    // --- 發送 Discord 戰報 ---
+    function sendDiscordWebhook(s, a, t, lt, msg) {
+        const WEBHOOK = "https://discord.com/api/webhooks/1490915002364985415/IIiu_o6Y5k7sfA5vs3FbsXxyTk1clSHrBpeNSVv2FcmhTXARqtsc3npq3PXpIRmVTz96";
+        if (!WEBHOOK.includes("http")) return;
+        fetch(WEBHOOK, {
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                embeds: [{
+                    title: "老年認知訓練戰報",
+                    color: 3447003,
+                    fields: [
+                        { name: "🎯 本次得分", value: `${s} 分 (${a}%)`, inline: true },
+                        { name: "⏱️ 本次耗時", value: `${t} 秒`, inline: true },
+                        { name: "⌛ 上次耗時", value: `${lt} 秒`, inline: true },
+                        { name: "📊 系統評價", value: msg, inline: false }
+                    ]
+                }]
+            })
+        }).catch(err => console.error("Discord 發送失敗", err));
+    }
+
+    // --- 遊戲結算 ---
     function endGame() {
         clearInterval(roundTimer);
         totalGameTime = ((Date.now() - gameStartTime) / 1000).toFixed(1);
@@ -190,13 +203,19 @@
         document.getElementById('result-score').innerText = `分數：${scoreCount} / 10 (${acc}%)`;
 
         let analysis = document.getElementById('result-analysis');
+        let evalMsg = ""; // 用來記錄系統評價字串
+        
         if (scoreCount > lastScore || acc > lastAcc) {
-            analysis.innerText = `📈 進步了！分數比上次高 ${scoreCount - lastScore} 分！`;
+            evalMsg = `📈 進步了！分數比上次高 ${scoreCount - lastScore} 分！`;
             analysis.style.background = "#d4edda"; analysis.style.color = "#155724";
         } else {
-            analysis.innerText = `💪 持之以恆！再試一次，挑戰上次的紀錄吧！`;
+            evalMsg = `💪 持之以恆！再試一次，挑戰上次的紀錄吧！`;
             analysis.style.background = "#fff3cd"; analysis.style.color = "#856404";
         }
+        analysis.innerText = evalMsg;
+
+        // 觸發 Discord Webhook 發送
+        sendDiscordWebhook(scoreCount, acc, totalGameTime, lastTime, evalMsg);
 
         localStorage.setItem('last_total_time', totalGameTime);
         localStorage.setItem('last_score', scoreCount);
@@ -206,7 +225,7 @@
         document.getElementById('result-screen').style.display = 'flex';
     }
 
-    // 保留藍牙功能
+    // --- 藍牙與有線連線保留 ---
     async function connectBLE() {
         try {
             const dev = await navigator.bluetooth.requestDevice({ filters: [{ name: 'ESP32_Trainer' }], optionalServices: ["4fafc201-1fb5-459e-8fcc-c5c9c331914b"] });
@@ -222,7 +241,6 @@
         } catch (e) { updateStatus("❌ 連接失敗", false); }
     }
 
-    // 保留有線功能
     async function connectSerial() {
         try {
             const p = await navigator.serial.requestPort();
