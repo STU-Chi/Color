@@ -92,16 +92,16 @@
 
     // 新增 Wi-Fi 連線邏輯 (修改版：一鍵直接連線)
     function connectWiFi() {
-        // ★ 重要：請將下方的 IP 替換成你從 Arduino 序列埠監控視窗看到的 ESP32 IP 位址
+        // ★ 這裡的 IP 必須跟你在 ESP32 (color.ino) 裡設定的 local_IP 完全一模一樣！
         const esp32_ip = "192.168.1.100"; 
 
-        updateStatus(`正在尋找 ESP32 (${esp32_ip})...`, false);
+        updateStatus(`正在連線至 ESP32 (${esp32_ip})...`, false);
         
-        // 建立 WebSocket 連線 (假設 ESP32 監聽 81 埠)
+        // 建立 WebSocket 連線 (ESP32 監聽 81 埠)
         socket = new WebSocket(`ws://${esp32_ip}:81`);
 
         socket.onopen = () => {
-            updateStatus("✅ Wi-Fi 已連接", true);
+            updateStatus("✅ Wi-Fi 已連接，可以開始遊玩！", true);
         };
 
         socket.onmessage = (event) => {
@@ -114,7 +114,7 @@
         };
 
         socket.onerror = () => {
-            updateStatus("❌ 找不到 ESP32，請確認 IP 是否正確且處於同一個 Wi-Fi", false);
+            updateStatus("❌ 找不到 ESP32，請確認 IP 正確且兩者連上同一個 Wi-Fi", false);
         };
     }
     
