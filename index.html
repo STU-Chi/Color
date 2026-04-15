@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>顏色訓練反應</title>
-    <link rel="manifest" href="manifest.json">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/paho-mqtt.min.js"></script>
     <style>
         body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f0f4f8; font-family: sans-serif; overflow: hidden; }
         #app-container { position: relative; width: 100%; max-width: 500px; height: 100%; background: white; overflow: hidden; display: flex; flex-direction: column; }
@@ -12,27 +12,19 @@
         h1 { font-size: 28px; margin-bottom: 10px; }
         .btn { padding: 15px; margin: 10px; font-size: 18px; font-weight: bold; cursor: pointer; border: none; border-radius: 12px; color: white; width: 80%; }
         .btn-start { background: #27ae60; } .btn-esp { background: #2980b9; }
-        
-        /* 遊戲畫面 */
         #game-screen { display: none; background: #ecf0f1; }
         #status-bar { width: 100%; padding: 15px; background: #34495e; color: white; display: flex; justify-content: space-between; font-weight: bold; }
-        
-        /* 核心修改：響應式圓形容器 */
         #color-container { display: flex; flex-direction: column; justify-content: space-around; align-items: center; flex-grow: 1; width: 100%; padding: 20px 0; }
         .color-block { width: 120px; height: 120px; border-radius: 50%; opacity: 0.1; transition: 0.1s; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
         .color-block.active { opacity: 1; transform: scale(1.1); }
-        
-        /* 電腦橫向時改回橫排 */
         @media (min-width: 600px) {
             #app-container { max-width: 800px; height: 500px; border-radius: 15px; }
             #color-container { flex-direction: row; }
             .color-block { width: 150px; height: 150px; }
         }
-
         #btn-R { background: #e74c3c; border: 6px solid #c0392b; }
         #btn-Y { background: #f1c40f; border: 6px solid #f39c12; }
         #btn-B { background: #3498db; border: 6px solid #2980b9; }
-
         .time-box { font-size: 16px; color: #7f8c8d; margin-top: 5px; }
         .analysis-card { width: 90%; padding: 15px; border-radius: 10px; margin-top: 15px; font-weight: bold; }
     </style>
@@ -43,7 +35,7 @@
     <div id="menu-screen" class="screen">
         <h1>🧠 色彩反應大師</h1>
         <button class="btn btn-start" onclick="startGame()">▶️ 開始訓練</button>
-        <button class="btn btn-esp" style="background:#e67e22" onclick="connectWiFi()">🌐 Wi-Fi 連線 (區域網路)</button>
+        <button class="btn btn-esp" style="background:#e67e22" onclick="connectMQTT()">☁️ 雲端網路連線</button>
         <button class="btn btn-esp" onclick="connectBLE()">🔗 藍牙連線 (手機推薦)</button>
         <button class="btn btn-esp" style="background:#8e44ad" onclick="connectSerial()">🔌 有線連線 (電腦推薦)</button>
         <div id="conn-msg" style="margin-top:10px; font-weight:bold;">等待連線...</div>
@@ -71,7 +63,13 @@
 </div>
 
 <script>
-    let bleChar = null, serialWriter = null, socket = null; // 新增 socket 變數
+    let bleChar = null, serialWriter = null;
+    let mqttClient = null; // MQTT 客戶端
+    
+    // MQTT 設定頻道
+    const topic_cmd = "my_color_trainer/cmd";
+    const topic_evt = "my_color_trainer/evt";
+
     let gameStartTime, totalGameTime, roundTimer;
     const TOTAL_ROUNDS = 10;
     let currentRound = 0, scoreCount = 0, currentActiveColor = null, isWaiting = false;
@@ -79,61 +77,64 @@
     function updateStatus(msg, ok) {
         document.getElementById('conn-msg').innerText = msg;
         document.getElementById('conn-msg').style.color = ok ? "#27ae60" : "#e74c3c";
-        if (ok) alert(msg);
     }
 
     async function sendCmd(c) {
         try {
             if (bleChar) await bleChar.writeValue(new TextEncoder().encode(c));
             if (serialWriter) await serialWriter.write(c + '\n');
-            if (socket && socket.readyState === WebSocket.OPEN) socket.send(c); // Wi-Fi 發送
+            // 透過 MQTT 發送指令給 ESP32
+            if (mqttClient && mqttClient.isConnected()) {
+                const message = new Paho.MQTT.Message(c);
+                message.destinationName = topic_cmd;
+                mqttClient.send(message);
+            }
         } catch (e) { console.error("發送失敗", e); }
     }
 
-    // 新增 Wi-Fi 連線邏輯 (修改版：一鍵直接連線)
-    function connectWiFi() {
-        // 讀取瀏覽器上次記住的 IP，如果沒有紀錄，預設先給 "10.83.106.200"
-        let lastIp = localStorage.getItem('last_esp_ip') || "10.83.106.200";
+    // --- 新增：MQTT 雲端連線邏輯 ---
+    function connectMQTT() {
+        updateStatus("正在連線至雲端伺服器...", false);
         
-        // 彈出視窗讓使用者輸入 IP
-        const esp32_ip = prompt("請輸入 ESP32 目前的 IP 位址：", lastIp);
+        // 隨機產生網頁端的 Client ID
+        const clientId = "WebClient-" + Math.random().toString(16).substr(2, 8);
         
-        // 如果使用者按了「取消」或沒輸入，就中斷程式
-        if (!esp32_ip) return; 
+        // 連接至 EMQX 公開伺服器的加密 WebSocket 埠 (8084)
+        mqttClient = new Paho.MQTT.Client("broker.emqx.io", 8084, "/mqtt", clientId);
 
-        // 把這次輸入的 IP 記在瀏覽器裡，下次就不用重打
-        localStorage.setItem('last_esp_ip', esp32_ip);
-
-        updateStatus(`正在連線至 ESP32 (${esp32_ip})...`, false);
-        
-        // 建立 WebSocket 連線
-        socket = new WebSocket(`ws://${esp32_ip}:81`);
-
-        socket.onopen = () => {
-            updateStatus("✅ Wi-Fi 已連接，可以開始遊玩！", true);
+        // 設定回呼函數
+        mqttClient.onConnectionLost = (responseObject) => {
+            if (responseObject.errorCode !== 0) {
+                updateStatus("❌ 雲端連線已斷開", false);
+            }
         };
 
-        socket.onmessage = (event) => {
-            const m = event.data.trim();
+        mqttClient.onMessageArrived = (message) => {
+            const m = message.payloadString.trim();
             if (['R','Y','B'].includes(m)) handleInput(m);
         };
 
-        socket.onclose = () => {
-            updateStatus("❌ 與 ESP32 的連線已斷開", false);
-        };
-
-        socket.onerror = () => {
-            updateStatus("❌ 連線失敗！請確認 IP 正確，且瀏覽器已允許不安全內容", false);
-        };
+        // 開始連線 (使用 SSL 加密，解決 GitHub Pages 阻擋問題)
+        mqttClient.connect({
+            useSSL: true,
+            onSuccess: () => {
+                updateStatus("✅ 雲端已連線，可以開始遊玩！", true);
+                // 訂閱 ESP32 發出按鈕訊號的頻道
+                mqttClient.subscribe(topic_evt);
+            },
+            onFailure: (err) => {
+                updateStatus("❌ 雲端連線失敗", false);
+                console.error(err);
+            }
+        });
     }
-    
+
     function startGame() {
         currentRound = 0; scoreCount = 0;
-        gameStartTime = Date.now(); // 記錄總開始時間
+        gameStartTime = Date.now();
         document.getElementById('menu-screen').style.display = 'none';
         document.getElementById('game-screen').style.display = 'flex';
         
-        // 即時跳秒顯示
         roundTimer = setInterval(() => {
             const sec = ((Date.now() - gameStartTime) / 1000).toFixed(1);
             document.getElementById('ui-timer').innerText = sec + "s";
@@ -160,7 +161,6 @@
     }
 
     function returnToMenu() {
-        // 隱藏結算畫面，顯示主選單 (不會斷開連線！)
         document.getElementById('result-screen').style.display = 'none';
         document.getElementById('menu-screen').style.display = 'flex';
     }
@@ -175,7 +175,7 @@
 
     function endGame() {
         clearInterval(roundTimer);
-        totalGameTime = ((Date.now() - gameStartTime) / 1000).toFixed(1); // 本次總秒數
+        totalGameTime = ((Date.now() - gameStartTime) / 1000).toFixed(1);
         sendCmd("OFF_ALL");
 
         let lastTime = localStorage.getItem('last_total_time') || "--";
@@ -183,11 +183,9 @@
         let lastAcc = parseInt(localStorage.getItem('last_acc')) || 0;
         const acc = (scoreCount / TOTAL_ROUNDS) * 100;
 
-        // 顯示時間比較
         document.getElementById('result-time-compare').innerHTML = `本次耗時：${totalGameTime}s | 上次耗時：${lastTime}s`;
         document.getElementById('result-score').innerText = `分數：${scoreCount} / 10 (${acc}%)`;
 
-        // 進步判斷邏輯
         let analysis = document.getElementById('result-analysis');
         if (scoreCount > lastScore || acc > lastAcc) {
             analysis.innerText = `📈 進步了！分數比上次高 ${scoreCount - lastScore} 分！`;
@@ -197,38 +195,15 @@
             analysis.style.background = "#fff3cd"; analysis.style.color = "#856404";
         }
 
-        // 存入紀錄
         localStorage.setItem('last_total_time', totalGameTime);
         localStorage.setItem('last_score', scoreCount);
         localStorage.setItem('last_acc', acc);
 
         document.getElementById('game-screen').style.display = 'none';
         document.getElementById('result-screen').style.display = 'flex';
-        
-        sendToDiscord(scoreCount, acc, totalGameTime, lastTime, analysis.innerText);
     }
 
-    async function sendToDiscord(s, a, t, lt, msg) {
-        const WEBHOOK = "https://discord.com/api/webhooks/1490915002364985415/IIiu_o6Y5k7sfA5vs3FbsXxyTk1clSHrBpeNSVv2FcmhTXARqtsc3npq3PXpIRmVTz96";
-        if (!WEBHOOK.includes("http")) return;
-        fetch(WEBHOOK, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                embeds: [{
-                    title: "老年認知訓練戰報",
-                    color: 3447003,
-                    fields: [
-                        { name: "🎯 本次得分", value: `${s} 分 (${a}%)`, inline: true },
-                        { name: "⏱️ 本次耗時", value: `${t} 秒`, inline: true },
-                        { name: "⌛ 上次耗時", value: `${lt} 秒`, inline: true },
-                        { name: "📊 系統評價", value: msg, inline: false }
-                    ]
-                }]
-            })
-        });
-    }
-
-    // --- 連線代碼 (保持不變) ---
+    // 保留藍牙功能
     async function connectBLE() {
         try {
             const dev = await navigator.bluetooth.requestDevice({ filters: [{ name: 'ESP32_Trainer' }], optionalServices: ["4fafc201-1fb5-459e-8fcc-c5c9c331914b"] });
@@ -244,6 +219,7 @@
         } catch (e) { updateStatus("❌ 連接失敗", false); }
     }
 
+    // 保留有線功能
     async function connectSerial() {
         try {
             const p = await navigator.serial.requestPort();
