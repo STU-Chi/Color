@@ -130,6 +130,11 @@
                 mqttClient.subscribe(topic_evt);
                 // 新增：訂閱設備狀態頻道
                 mqttClient.subscribe("my_color_trainer/status");
+
+                // 主動發送一個指令，要求 ESP32 報到
+                const checkMsg = new Paho.MQTT.Message("STATUS_CHECK");
+                checkMsg.destinationName = topic_cmd;
+                mqttClient.send(checkMsg);
             },
             onFailure: (err) => {
                 updateStatus("❌ 雲端連線失敗", false);
